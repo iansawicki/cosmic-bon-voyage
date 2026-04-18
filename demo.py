@@ -8,7 +8,13 @@ Usage:
 """
 
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
 from music_embedding import MusicEmbeddingService, MusicTrack, MusicPlaylist
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 
 def main():
