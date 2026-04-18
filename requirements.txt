@@ -1,0 +1,5 @@
+# Music Embedding Service - Requirements
+# For use with Voyage AI API
+
+voyageai>=0.2.0
+numpy>=1.20.0
