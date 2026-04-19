@@ -12,10 +12,10 @@ from typing import Any
 
 from supabase import Client
 
-import voyage_embed.track_tagging.prompt as prompt_module
+import tagging.prompt as prompt_module
 
-from voyage_embed.track_tagging.db import enrich_track_with_playlist, fetch_tracks_to_tag
-from voyage_embed.track_tagging.gemini import default_tag_model, get_genai_client, tag_track_sync
+from tagging.db import enrich_track_with_playlist, fetch_tracks_to_tag
+from tagging.gemini import default_tag_model, get_genai_client, tag_track_sync
 
 
 def _git_commit() -> str | None:
@@ -23,7 +23,7 @@ def _git_commit() -> str | None:
         return (
             subprocess.check_output(
                 ["git", "rev-parse", "--short", "HEAD"],
-                cwd=str(Path(__file__).resolve().parents[2]),
+                cwd=str(Path(__file__).resolve().parents[1]),
                 stderr=subprocess.DEVNULL,
             )
             .decode()

@@ -1,4 +1,4 @@
-"""CLI: python -m voyage_embed.track_tagging"""
+"""CLI: python -m tagging"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -30,7 +30,7 @@ def main() -> None:
         type=str,
         default=None,
         metavar="NAME",
-        help="Prompt module under prompts/ (no .py), e.g. prompt_1. Overrides TAG_PROMPT env.",
+        help="Prompt module under tagging/prompts/ (no .py), e.g. prompt_1. Overrides TAG_PROMPT env.",
     )
     p.add_argument("--temperature", type=float, default=0.2)
     args = p.parse_args()
@@ -39,7 +39,7 @@ def main() -> None:
         os.environ["TAG_PROMPT"] = args.prompt.strip().removesuffix(".py")
 
     from voyage_embed.env import get_supabase_client
-    from voyage_embed.track_tagging.run import run_tag_tracks
+    from tagging.run import run_tag_tracks
 
     sb = get_supabase_client()
     out = run_tag_tracks(

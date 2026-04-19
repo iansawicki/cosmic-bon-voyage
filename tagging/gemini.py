@@ -9,7 +9,7 @@ from typing import Any
 from google import genai
 from google.genai import types
 
-import voyage_embed.track_tagging.prompt as prompt_module
+import tagging.prompt as prompt_module
 
 
 def get_genai_client() -> genai.Client:

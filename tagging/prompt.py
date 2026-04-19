@@ -1,7 +1,7 @@
-"""Load active tagging SCHEMA + helpers from ``voyage_embed.track_tagging.prompts.<name>``.
+"""Load active tagging SCHEMA + helpers from ``tagging.prompts.<name>``.
 
 Selection: env ``TAG_PROMPT`` (default ``prompt_1``), or set env before importing
-``voyage_embed.track_tagging.run``. CLI ``--prompt`` / ``--tag-prompt`` sets this before imports.
+``tagging.run``. CLI ``--prompt`` / ``--tag-prompt`` sets this before imports.
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ def load_prompt_module() -> Any:
     key = active_prompt_name()
     if _cached_mod is None or key != _cached_key:
         _cached_key = key
-        _cached_mod = importlib.import_module(f"voyage_embed.track_tagging.prompts.{key}")
+        _cached_mod = importlib.import_module(f"tagging.prompts.{key}")
     return _cached_mod
 
 

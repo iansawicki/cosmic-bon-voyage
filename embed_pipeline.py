@@ -422,7 +422,7 @@ def main() -> None:
             type=str,
             default=None,
             metavar="NAME",
-            help="Prompt module under voyage_embed/track_tagging/prompts/ (e.g. prompt_1). Sets TAG_PROMPT.",
+            help="Prompt module under tagging/prompts/ (e.g. prompt_1). Sets TAG_PROMPT.",
         )
         p.add_argument("--temperature", type=float, default=0.2)
 
@@ -433,7 +433,7 @@ def main() -> None:
             os.environ["TAG_PROMPT"] = str(a.tag_prompt).strip().removesuffix(".py")
 
         from voyage_embed.env import get_supabase_client
-        from voyage_embed.track_tagging.run import run_tag_tracks
+        from tagging.run import run_tag_tracks
 
         sb = get_supabase_client()
         lim = a.limit if a.limit and a.limit > 0 else None
@@ -505,7 +505,7 @@ def main() -> None:
             if tp:
                 os.environ["TAG_PROMPT"] = str(tp).strip().removesuffix(".py")
             from voyage_embed.env import get_supabase_client
-            from voyage_embed.track_tagging.run import run_tag_tracks
+            from tagging.run import run_tag_tracks
 
             sb = get_supabase_client()
             tlim = a.tag_limit if getattr(a, "tag_limit", None) and a.tag_limit > 0 else None

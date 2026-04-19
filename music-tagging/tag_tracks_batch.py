@@ -13,7 +13,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from voyage_embed.track_tagging.prompt import (  # noqa: E402
+from tagging.prompt import (  # noqa: E402
     SCHEMA,
     openai_batch_request_body,
 )
@@ -35,7 +35,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 cf_client = Client(CONTENTFUL_MANAGEMENT_TOKEN)
 environment = cf_client.environments(SPACE_ID).find(ENVIRONMENT_ID)
 
-# SCHEMA imported from voyage_embed.track_tagging.prompt
+# SCHEMA imported from tagging.prompt
 
 # ── Load CSV ─────────────────────────────────────────────
 df = pd.read_csv("tracks_to_tag.csv")

@@ -21,11 +21,36 @@
 | `GOOGLE_CLOUD_LOCATION` | Optional; e.g. `us-central1`. |
 | `GOOGLE_GENAI_USE_VERTEXAI` | Optional; set to `true` to force Vertex mode when using project/location env vars. |
 | `GEMINI_TAG_MODEL` | Optional; default `gemini-2.0-flash-lite` (override with any supported Vertex model id). |
-| `TAG_PROMPT` | Optional; which prompt module to load: `prompt_1`, `prompt_2`, … (files under `voyage_embed/track_tagging/prompts/`). Default `prompt_1`. Overridden by `--prompt` / `--tag-prompt`. |
+| `TAG_PROMPT` | Optional; which prompt module to load: `prompt_1`, `prompt_2`, … (files under `tagging/prompts/`). Default `prompt_1`. Overridden by `--prompt` / `--tag-prompt`. |
 
 Place values in **`.env`** at the repo root. Scripts call `load_dotenv()` for that file so you do not need to `export` manually.
 
 **Debug credentials:** from the repo root, run `python embed_pipeline.py check-env`. It prints which URL and key variables win, the JWT `role` (should be `service_role` for batch writes), and the project `ref` — without printing secrets.
+
+## Pipeline layout (tagging → embedding → eval)
+
+| Piece | Role |
+|-------|------|
+| [`tagging/`](tagging/) | Vertex Gemini tagging → `tracks_ai` (`python -m tagging` or `embed_pipeline.py tag-tracks`) |
+| [`voyage_embed/`](voyage_embed/) | Voyage embeddings and DB backfills for tracks, artists, playlists |
+| [`tagging/eval/`](tagging/eval/) | Offline JSONL comparison (`python -m tagging.eval`) — no Voyage calls |
+| [`embed_pipeline.py`](embed_pipeline.py) | Orchestrates tagging and/or embedding steps from the repo root |
+
+```mermaid
+flowchart LR
+  subgraph tag [tagging]
+    tg[tagging CLI]
+  end
+  subgraph emb [voyage_embed]
+    ve[embed backfills]
+  end
+  subgraph ev [tagging.eval]
+    evalm[JSONL metrics]
+  end
+  ep[embed_pipeline.py] --> tg
+  ep --> ve
+  evalm -.->|"same tag schema"| tg
+```
 
 ### Troubleshooting: “Processed N” but nothing in the database
 
@@ -53,15 +78,26 @@ Apply migration [`supabase/migrations/20260419120000_tagging_runs.sql`](supabase
 - **Then embed:** `python embed_pipeline.py embed-tracks --limit 10`
 - **Combined:** `python embed_pipeline.py embed-all --tag-tracks-first --tag-limit 10` (runs tagging, then all three embed steps; use `--tag-dry-run` to skip real Gemini calls for a smoke test of the pipeline shape).
 
-Playlist context comes from `track_playlist_map` → `playlists_ai` (first row by `position`). Legacy CSV batch tagging remains in [`music-tagging/tag_tracks_batch.py`](music-tagging/tag_tracks_batch.py) (OpenAI Batch).
+Playlist context comes from `track_playlist_map` → `playlists_ai` (first row by `position`). Legacy CSV batch tagging remains in [`music-tagging/tag_tracks_batch.py`](music-tagging/tag_tracks_batch.py) (OpenAI Batch). That script imports the shared schema from [`tagging/prompt.py`](tagging/prompt.py).
 
 **Eval (reference vs candidate JSONL):**
 
 ```bash
-python -m voyage_embed.track_tagging.eval_cli --reference-jsonl ref.jsonl --candidate-jsonl cand.jsonl
+python -m tagging.eval --reference-jsonl ref.jsonl --candidate-jsonl cand.jsonl
 ```
 
-Each JSONL line should include `track_id` and `prediction` (and reference file lines use `reference` for ground truth).
+Each line must be one JSON object per line with `track_id`. The **reference** file should include `reference` (or `tags` / `prediction` as fallback) for ground truth; the **candidate** file should include `prediction` (or `tags`). For list fields (`style_tags`, `mood_keywords`, `search_keywords`, `secondary_genres`), values are compared after **strip + lower** per token.
+
+Optional output directory (writes `metrics.json`, `summary.txt`, `genre_confusion.csv`; add `--plot` for heatmaps under `plots/`):
+
+```bash
+python -m tagging.eval --reference-jsonl ref.jsonl --candidate-jsonl cand.jsonl \
+  --out-dir eval_out --genre-top-k 30 --plot
+```
+
+Flags: `--genre-max-labels` (classification report size), `--genre-confusion-csv PATH`, `--plot-max-labels` (skip large genre heatmaps), `--quiet` (stdout suppressed when using `--out-dir`). Default is print-only to stdout, same as before.
+
+Previously: `python -m voyage_embed.track_tagging.eval_cli` — use `python -m tagging.eval` instead.
 
 ## Verify pgvector column width
 
@@ -172,7 +208,7 @@ Optional: **`--plot-clusters K`** to fix the number of KMeans clusters (default 
 
 ## music-tagging scripts
 
-Legacy CLIs under `music-tagging/` load the parent `.env` and call the same `voyage_embed` modules:
+Legacy CLIs under `music-tagging/` load the parent `.env` and call the same `voyage_embed` embedding modules (tagging uses the top-level [`tagging`](tagging/) package):
 
 ```bash
 python music-tagging/generate_embeddings.py --limit 10
@@ -180,4 +216,4 @@ python music-tagging/generate_artist_embeddings.py --limit 10
 python music-tagging/generate_playlist_embeddings.py --limit 10
 ```
 
-See also [music-tagging/EMBEDDINGS.md](music-tagging/EMBEDDINGS.md) for the original catalog/tag pipeline.
+See [music-tagging/README.md](music-tagging/README.md) and [music-tagging/EMBEDDINGS.md](music-tagging/EMBEDDINGS.md) for context.
