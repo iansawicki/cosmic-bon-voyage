@@ -7,6 +7,12 @@ supabase>=2.0.0
 python-dotenv>=1.0.0
 psycopg[binary]>=3.1.0
 
+# Vertex Gemini tagging (tracks_ai)
+google-genai>=1.0.0
+
+# Optional: legacy OpenAI Batch tagging (music-tagging/tag_tracks_batch.py)
+openai>=1.0.0
+
 # sbase_embeddings_rerun.py --plot-universe (PNG and/or interactive HTML)
 scikit-learn>=1.3.0
 matplotlib>=3.7.0

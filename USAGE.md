@@ -16,6 +16,12 @@
 | `VOYAGE_MAX_RETRIES` | Optional; default `3` |
 | `VOYAGE_TIMEOUT` | Optional; seconds |
 | `DATABASE_URL` | Optional. **Postgres connection URI** (Supabase: **Settings → Database**). If set, embedding **writes** use direct SQL and **bypass PostgREST** (fixes stubborn `UPDATE … affected 0 rows` when the HTTP API does not apply updates). Same names supported: `SUPABASE_DATABASE_URL`, `POSTGRES_URL`. Requires `psycopg` (`pip install 'psycopg[binary]'`). Prefer the **Connection pooling** URI (pooler host, port **6543**) if **direct** (port **5432**) fails with IPv6 / “No route to host” on your network. |
+| `GOOGLE_CLOUD_API_KEY` | **Vertex AI (Gemini) tagging:** API key for `genai.Client(vertexai=True, api_key=…)` when not using project/location + ADC. |
+| `GOOGLE_CLOUD_PROJECT` | Optional; with `GOOGLE_CLOUD_LOCATION`, use Vertex via project/location instead of API key. |
+| `GOOGLE_CLOUD_LOCATION` | Optional; e.g. `us-central1`. |
+| `GOOGLE_GENAI_USE_VERTEXAI` | Optional; set to `true` to force Vertex mode when using project/location env vars. |
+| `GEMINI_TAG_MODEL` | Optional; default `gemini-2.0-flash-lite` (override with any supported Vertex model id). |
+| `TAG_PROMPT` | Optional; which prompt module to load: `prompt_1`, `prompt_2`, … (files under `voyage_embed/track_tagging/prompts/`). Default `prompt_1`. Overridden by `--prompt` / `--tag-prompt`. |
 
 Place values in **`.env`** at the repo root. Scripts call `load_dotenv()` for that file so you do not need to `export` manually.
 
@@ -35,6 +41,27 @@ Without a payment method on the Voyage dashboard, accounts are limited to very l
 ### Parallel Voyage requests
 
 Use **`--embed-workers N`** (default `1`) to run up to `N` concurrent **chunk** embed calls in a thread pool. Each iteration loads **`batch-size × embed-workers`** rows so there are enough texts to split into multiple API chunks. Higher `N` increases throughput until you hit **rate limits** (429); reduce `N` or add **`--sleep-seconds`** if that happens.
+
+## Tag tracks (Vertex Gemini) before embeddings
+
+Apply migration [`supabase/migrations/20260419120000_tagging_runs.sql`](supabase/migrations/20260419120000_tagging_runs.sql) in the Supabase SQL editor (creates `tagging_runs` and `tracks_ai.tagging_run_id`).
+
+- **Tag pending rows** (`tagging_status = 'pending'`):  
+  `python embed_pipeline.py tag-tracks --limit 10`  
+  Use another prompt file: `python embed_pipeline.py tag-tracks --tag-prompt prompt_1 --limit 10` (or set `TAG_PROMPT` in `.env`).
+- **Dry run:** `python embed_pipeline.py tag-tracks --dry-run --limit 5`
+- **Then embed:** `python embed_pipeline.py embed-tracks --limit 10`
+- **Combined:** `python embed_pipeline.py embed-all --tag-tracks-first --tag-limit 10` (runs tagging, then all three embed steps; use `--tag-dry-run` to skip real Gemini calls for a smoke test of the pipeline shape).
+
+Playlist context comes from `track_playlist_map` → `playlists_ai` (first row by `position`). Legacy CSV batch tagging remains in [`music-tagging/tag_tracks_batch.py`](music-tagging/tag_tracks_batch.py) (OpenAI Batch).
+
+**Eval (reference vs candidate JSONL):**
+
+```bash
+python -m voyage_embed.track_tagging.eval_cli --reference-jsonl ref.jsonl --candidate-jsonl cand.jsonl
+```
+
+Each JSONL line should include `track_id` and `prediction` (and reference file lines use `reference` for ground truth).
 
 ## Verify pgvector column width
 

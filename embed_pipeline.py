@@ -7,6 +7,8 @@ Orchestrate EDA and Voyage embedding backfills for tracks_ai, artists_ai, playli
   python embed_pipeline.py viz --from-cache viz/tracks_sample.json --d3 tracks_d3.html
   python embed_pipeline.py embed-tracks --limit 10
   python embed_pipeline.py embed-all --limit 5 --dry-run
+  python embed_pipeline.py tag-tracks --limit 10
+  python embed_pipeline.py embed-all --tag-tracks-first --tag-limit 5
   python embed_pipeline.py check-env
   python embed_pipeline.py search --from-cache viz/sample.json --query "chill microdose vibes"
   python embed_pipeline.py cosmos --cache viz/tracks_sample_1500.json --embedding-column voyage_ai_3p5_embed
@@ -405,6 +407,47 @@ def main() -> None:
     )
     p_cosmos.set_defaults(func=_cmd_cosmos)
 
+    def _add_tag_flags(p: argparse.ArgumentParser) -> None:
+        p.add_argument(
+            "--replace-all",
+            action="store_true",
+            help="Tag all tracks, not only tagging_status=pending",
+        )
+        p.add_argument("--limit", type=int, default=None, metavar="N")
+        p.add_argument("--dry-run", action="store_true", help="No Gemini calls or DB writes")
+        p.add_argument("--tag-workers", type=int, default=1, metavar="N")
+        p.add_argument("--tag-model", type=str, default=None, help="Override GEMINI_TAG_MODEL")
+        p.add_argument(
+            "--tag-prompt",
+            type=str,
+            default=None,
+            metavar="NAME",
+            help="Prompt module under voyage_embed/track_tagging/prompts/ (e.g. prompt_1). Sets TAG_PROMPT.",
+        )
+        p.add_argument("--temperature", type=float, default=0.2)
+
+    def cmd_tag_tracks(a: argparse.Namespace) -> None:
+        import os
+
+        if getattr(a, "tag_prompt", None):
+            os.environ["TAG_PROMPT"] = str(a.tag_prompt).strip().removesuffix(".py")
+
+        from voyage_embed.env import get_supabase_client
+        from voyage_embed.track_tagging.run import run_tag_tracks
+
+        sb = get_supabase_client()
+        lim = a.limit if a.limit and a.limit > 0 else None
+        out = run_tag_tracks(
+            sb,
+            replace_all=a.replace_all,
+            limit=lim,
+            dry_run=a.dry_run,
+            workers=max(1, a.tag_workers),
+            model=a.tag_model,
+            temperature=a.temperature,
+        )
+        print(out)
+
     def cmd_tracks(a: argparse.Namespace) -> None:
         from voyage_embed.env import get_supabase_client
         from voyage_embed.tracks import run_embed_tracks
@@ -454,6 +497,29 @@ def main() -> None:
         )
 
     def cmd_all(a: argparse.Namespace) -> None:
+        import os
+
+        if getattr(a, "tag_tracks_first", False):
+            print("=== tag-tracks (Vertex Gemini) ===")
+            tp = getattr(a, "tag_prompt", None)
+            if tp:
+                os.environ["TAG_PROMPT"] = str(tp).strip().removesuffix(".py")
+            from voyage_embed.env import get_supabase_client
+            from voyage_embed.track_tagging.run import run_tag_tracks
+
+            sb = get_supabase_client()
+            tlim = a.tag_limit if getattr(a, "tag_limit", None) and a.tag_limit > 0 else None
+            print(
+                run_tag_tracks(
+                    sb,
+                    replace_all=getattr(a, "tag_replace_all", False),
+                    limit=tlim,
+                    dry_run=getattr(a, "tag_dry_run", False),
+                    workers=max(1, getattr(a, "tag_workers", 1)),
+                    model=getattr(a, "tag_model", None),
+                    temperature=float(getattr(a, "tag_temperature", 0.2)),
+                )
+            )
         print("=== embed-tracks ===")
         cmd_tracks(a)
         print("=== embed-artists ===")
@@ -473,8 +539,33 @@ def main() -> None:
     _add_embed_flags(p_pl)
     p_pl.set_defaults(func=cmd_playlists)
 
+    p_tag = sub.add_parser(
+        "tag-tracks",
+        help="Tag tracks_ai via Vertex Gemini (structured JSON). Requires tagging_runs migration.",
+    )
+    _add_tag_flags(p_tag)
+    p_tag.set_defaults(func=cmd_tag_tracks)
+
     p_all = sub.add_parser("embed-all", help="Run embed-tracks, embed-artists, embed-playlists in order.")
     _add_embed_flags(p_all)
+    p_all.add_argument(
+        "--tag-tracks-first",
+        action="store_true",
+        help="Run Vertex tag-tracks first (uses --tag-limit / --tag-workers / --tag-dry-run / --tag-replace-all).",
+    )
+    p_all.add_argument("--tag-limit", type=int, default=None, metavar="N")
+    p_all.add_argument("--tag-workers", type=int, default=1, metavar="N")
+    p_all.add_argument("--tag-dry-run", action="store_true")
+    p_all.add_argument("--tag-replace-all", action="store_true")
+    p_all.add_argument("--tag-model", type=str, default=None)
+    p_all.add_argument(
+        "--tag-prompt",
+        type=str,
+        default=None,
+        metavar="NAME",
+        help="Same as tag-tracks --tag-prompt when using --tag-tracks-first.",
+    )
+    p_all.add_argument("--tag-temperature", type=float, default=0.2)
     p_all.set_defaults(func=cmd_all)
 
     args = parser.parse_args()
