@@ -27,6 +27,21 @@ Place values in **`.env`** at the repo root. Scripts call `load_dotenv()` for th
 
 **Debug credentials:** from the repo root, run `python embed_pipeline.py check-env`. It prints which URL and key variables win, the JWT `role` (should be `service_role` for batch writes), and the project `ref` — without printing secrets.
 
+### Edge function `search-music` (Voyage query embeddings)
+
+The deployed function [`supabase/functions/search-music`](supabase/functions/search-music) embeds the user query with **Voyage** (`input_type` defaults to **`query`** for retrieval; override with Edge secret `VOYAGE_INPUT_TYPE` if needed). Set these in **Supabase Dashboard → Edge Functions → Secrets** (not only `.env` on your laptop):
+
+- **`VOYAGE_API_KEY`** (required)
+- **`VOYAGE_MODEL`** — optional; default `voyage-3.5-lite` (same default as Python `voyage_embed/env.py`)
+- **`VOYAGE_OUTPUT_DIMENSION`** — optional; must match your pgvector column width when using matryoshka (e.g. `1024`)
+- **`SUPABASE_URL`** / **`SUPABASE_SERVICE_ROLE_KEY`** — usually auto-injected
+
+**Before production:** Apply [`supabase/sql_functions_local/search_music_voyage.sql`](supabase/sql_functions_local/search_music_voyage.sql) so Postgres has `search_music_voyage(query_embedding vector(1024))` using `voyage_ai_3p5_embed`. The Edge function calls that RPC (legacy `search_music` remains for rollback).
+
+**Deploy:** `supabase functions deploy search-music` (CLI linked to the target project).
+
+If the mobile app branches on error `code`, update any check for `missing_openai_key` to **`missing_voyage_key`**.
+
 ## Pipeline layout (tagging → embedding → eval)
 
 | Piece | Role |
